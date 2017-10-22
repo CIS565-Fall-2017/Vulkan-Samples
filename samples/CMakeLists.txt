@@ -8,7 +8,7 @@ function(buildSample SAMPLE_NAME)
     ${SAMPLE_NAME}/*.tese
     ${SAMPLE_NAME}/*.tesc
   )
-  
+
   source_group("Shaders" FILES ${SHADER_SOURCES})
 
   if(WIN32)
@@ -24,7 +24,7 @@ function(buildSample SAMPLE_NAME)
     if(WIN32)
       get_filename_component(fname ${SHADER_SOURCE} NAME)
 	  add_custom_target(${SAMPLE_NAME}_${fname}.spv
-	    COMMAND ${CMAKE_COMMAND} -E make_directory ${SHADER_DIR} && 
+	    COMMAND ${CMAKE_COMMAND} -E make_directory ${SHADER_DIR} &&
 	    $ENV{VK_SDK_PATH}/Bin/glslangValidator.exe -V ${SHADER_SOURCE} -o ${SHADER_DIR}/${fname}.spv
 		SOURCES ${SHADER_SOURCE}
 	  )
@@ -35,17 +35,12 @@ function(buildSample SAMPLE_NAME)
 
   target_link_libraries(${SAMPLE_NAME} ${ASSIMP_LIBRARIES} Vulkan::Vulkan glfw)
   target_include_directories(${SAMPLE_NAME} PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR} 
+    ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/${SAMPLE_NAME}
     ${GLM_INCLUDE_DIR}
   )
-  
+
   ExternalTarget("samples" ${SAMPLE_NAME})
 endfunction(buildSample)
 
-buildSample(0_helloWindow)
-buildSample(1_helloTriangle)
-buildSample(2_helloVertexBuffers)
-buildSample(3_helloUniformBuffers)
-buildSample(4_helloCompute)
-buildSample(5_helloTessellation)
+buildSample(sample)
