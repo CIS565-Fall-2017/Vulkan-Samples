@@ -1,5 +1,4 @@
 #include <stdexcept>
-#include <fstream>
 #include <vulkan/vulkan.h>
 #include "window.h"
 #include "vulkan_instance.h"
