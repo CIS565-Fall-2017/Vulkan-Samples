@@ -73,7 +73,7 @@ VulkanSwapChain::VulkanSwapChain(VulkanDevice* device, VkSurfaceKHR vkSurface)
     VkPresentModeKHR presentMode = chooseSwapPresentMode(instance->GetPresentModes());
     VkExtent2D extent = chooseSwapExtent(surfaceCapabilities, GetGLFWWindow());
 
-    uint32_t imageCount = surfaceCapabilities.minImageCount + 1;
+    uint32_t imageCount = surfaceCapabilities.minImageCount + 1; // 2 + 1 = triple buffering
     if (surfaceCapabilities.maxImageCount > 0 && imageCount > surfaceCapabilities.maxImageCount) {
         imageCount = surfaceCapabilities.maxImageCount;
     }
@@ -192,7 +192,7 @@ uint32_t VulkanSwapChain::GetIndex() const {
 }
 
 uint32_t VulkanSwapChain::GetCount() const {
-    return vkSwapChainImages.size();
+    return static_cast<uint32_t>(vkSwapChainImages.size());
 }
 
 VkImageView VulkanSwapChain::GetImageView(uint32_t index) const {
@@ -209,6 +209,10 @@ VkSemaphore VulkanSwapChain::GetRenderFinishedSemaphore() const {
 }
 
 void VulkanSwapChain::Acquire() {
+    if (ENABLE_VALIDATION) {
+        // the validation layer implementation expects the application to explicitly synchronize with the GPU
+        vkQueueWaitIdle(device->GetQueue(QueueFlags::Present));
+    }
     VkResult result = vkAcquireNextImageKHR(device->GetVulkanDevice(), vkSwapChain, std::numeric_limits<uint64_t>::max(), imageAvailableSemaphore, VK_NULL_HANDLE, &imageIndex);   
     if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR) {
         throw std::runtime_error("Failed to acquire swap chain image");
@@ -235,8 +239,6 @@ void VulkanSwapChain::Present() {
     if (result != VK_SUCCESS) {
         throw std::runtime_error("Failed to present swap chain image");
     }
-
-    vkQueueWaitIdle(device->GetQueue(QueueFlags::Present));
 }
 
 VulkanSwapChain::~VulkanSwapChain() {

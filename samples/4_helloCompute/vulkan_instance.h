@@ -6,6 +6,8 @@
 #include "forward.h"
 #include "vulkan_device.h"
 
+extern const bool ENABLE_VALIDATION;
+
 class VulkanInstance {
 
 public:

@@ -117,7 +117,7 @@ VkDescriptorSetLayout CreateDescriptorSetLayout(std::vector<VkDescriptorSetLayou
     VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo = {};
     descriptorSetLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
     descriptorSetLayoutCreateInfo.pNext = nullptr;
-    descriptorSetLayoutCreateInfo.bindingCount = layoutBindings.size();
+    descriptorSetLayoutCreateInfo.bindingCount = static_cast<uint32_t>(layoutBindings.size());
     descriptorSetLayoutCreateInfo.pBindings = layoutBindings.data();
 
     VkDescriptorSetLayout descriptorSetLayout;
@@ -164,7 +164,7 @@ VkDescriptorSet CreateDescriptorSet(VkDescriptorPool descriptorPool, VkDescripto
 VkPipelineLayout CreatePipelineLayout(std::vector<VkDescriptorSetLayout> descriptorSetLayouts) {
     VkPipelineLayoutCreateInfo pipelineLayoutInfo = {};
     pipelineLayoutInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-    pipelineLayoutInfo.setLayoutCount = descriptorSetLayouts.size();
+    pipelineLayoutInfo.setLayoutCount = static_cast<uint32_t>(descriptorSetLayouts.size());
     pipelineLayoutInfo.pSetLayouts = descriptorSetLayouts.data();
     pipelineLayoutInfo.pushConstantRangeCount = 0;
     pipelineLayoutInfo.pPushConstantRanges = 0;
@@ -358,7 +358,7 @@ VkPipeline CreateComputePipeline(VkPipelineLayout pipelineLayout) {
 
 std::vector<VkFramebuffer> CreateFrameBuffers(VkRenderPass renderPass) {
     std::vector<VkFramebuffer> frameBuffers(swapchain->GetCount());
-    for (size_t i = 0; i < swapchain->GetCount(); i++) {
+    for (uint32_t i = 0; i < swapchain->GetCount(); i++) {
         VkImageView attachments[] = { swapchain->GetImageView(i) };
 
         VkFramebufferCreateInfo framebufferInfo = {};
@@ -377,33 +377,6 @@ std::vector<VkFramebuffer> CreateFrameBuffers(VkRenderPass renderPass) {
     return frameBuffers;
 }
 
-void frame(VkCommandBuffer commandBuffer) {
-    swapchain->Acquire();
-
-    // Submit the command buffer
-    VkSubmitInfo submitInfo = {};
-    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-
-    VkSemaphore waitSemaphores[] = { swapchain->GetImageAvailableSemaphore() };
-    VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
-    submitInfo.waitSemaphoreCount = 1;
-    submitInfo.pWaitSemaphores = waitSemaphores;
-    submitInfo.pWaitDstStageMask = waitStages;
-
-    submitInfo.commandBufferCount = 1;
-    submitInfo.pCommandBuffers = &commandBuffer;
-
-    VkSemaphore signalSemaphores[] = { swapchain->GetRenderFinishedSemaphore() };
-    submitInfo.signalSemaphoreCount = 1;
-    submitInfo.pSignalSemaphores = signalSemaphores;
-
-    if (vkQueueSubmit(device->GetQueue(QueueFlags::Graphics), 1, &submitInfo, VK_NULL_HANDLE) != VK_SUCCESS) {
-        throw std::runtime_error("Failed to submit draw command buffer");
-    }
-
-    swapchain->Present();
-}
-
 int main(int argc, char** argv) {
     static constexpr char* applicationName = "Hello Compute";
     InitializeWindow(640, 480, applicationName);
@@ -418,9 +391,9 @@ int main(int argc, char** argv) {
         throw std::runtime_error("Failed to create window surface");
     }
 
-    instance->PickPhysicalDevice({ VK_KHR_SWAPCHAIN_EXTENSION_NAME }, QueueFlagBit::GraphicsBit | QueueFlagBit::TransferBit | QueueFlagBit::PresentBit, surface);
+    instance->PickPhysicalDevice({ VK_KHR_SWAPCHAIN_EXTENSION_NAME }, QueueFlagBit::GraphicsBit | QueueFlagBit::TransferBit | QueueFlagBit::ComputeBit | QueueFlagBit::PresentBit, surface);
 
-    device = instance->CreateDevice(QueueFlagBit::GraphicsBit | QueueFlagBit::TransferBit | QueueFlagBit::PresentBit);
+    device = instance->CreateDevice(QueueFlagBit::GraphicsBit | QueueFlagBit::TransferBit | QueueFlagBit::ComputeBit | QueueFlagBit::PresentBit);
     swapchain = device->CreateSwapChain(surface);
 
     VkCommandPoolCreateInfo poolInfo = {};
@@ -642,9 +615,6 @@ int main(int argc, char** argv) {
         // Draw indexed triangle
         vkCmdDrawIndexed(commandBuffers[i], 3, 1, 0, 0, 1);
 
-        // Draw
-        vkCmdDraw(commandBuffers[i], 3, 1, 0, 0);
-
         vkCmdEndRenderPass(commandBuffers[i]);
 
         if (vkEndCommandBuffer(commandBuffers[i]) != VK_SUCCESS) {
@@ -660,10 +630,37 @@ int main(int argc, char** argv) {
     // Map the part of the buffer referring the camera view matrix so it can be updated when the camera moves
     vkMapMemory(device->GetVulkanDevice(), uniformBufferMemory, uniformBufferOffsets[0] + offsetof(CameraUBO, viewMatrix), sizeof(glm::mat4), 0, reinterpret_cast<void**>(&mappedCameraView));
     while (!ShouldQuit()) {
-        frame(commandBuffers[swapchain->GetIndex()]);
+        swapchain->Acquire();
+
+        // Submit the command buffer
+        VkSubmitInfo submitInfo = {};
+        submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+
+        VkSemaphore waitSemaphores[] = { swapchain->GetImageAvailableSemaphore() };
+        VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
+        submitInfo.waitSemaphoreCount = 1;
+        submitInfo.pWaitSemaphores = waitSemaphores;
+        submitInfo.pWaitDstStageMask = waitStages;
+
+        submitInfo.commandBufferCount = 1;
+        submitInfo.pCommandBuffers = &commandBuffers[swapchain->GetIndex()];
+
+        VkSemaphore signalSemaphores[] = { swapchain->GetRenderFinishedSemaphore() };
+        submitInfo.signalSemaphoreCount = 1;
+        submitInfo.pSignalSemaphores = signalSemaphores;
+
+        if (vkQueueSubmit(device->GetQueue(QueueFlags::Graphics), 1, &submitInfo, VK_NULL_HANDLE) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to submit draw command buffer");
+        }
+
+        swapchain->Present();
+
         glfwPollEvents();
     }
     vkUnmapMemory(device->GetVulkanDevice(), uniformBufferMemory);
+
+    // Wait for the device to finish executing before cleanup
+    vkDeviceWaitIdle(device->GetVulkanDevice());
 
     delete camera;
 

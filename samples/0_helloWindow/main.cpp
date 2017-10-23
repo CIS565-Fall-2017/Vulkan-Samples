@@ -59,7 +59,7 @@ VkRenderPass CreateRenderPass() {
 
 std::vector<VkFramebuffer> CreateFrameBuffers(VkRenderPass renderPass) {
     std::vector<VkFramebuffer> frameBuffers(swapchain->GetCount());
-    for (size_t i = 0; i < swapchain->GetCount(); i++) {
+    for (uint32_t i = 0; i < swapchain->GetCount(); i++) {
         VkImageView attachments[] = { swapchain->GetImageView(i) };
 
         VkFramebufferCreateInfo framebufferInfo = {};
@@ -76,33 +76,6 @@ std::vector<VkFramebuffer> CreateFrameBuffers(VkRenderPass renderPass) {
         }
     }
     return frameBuffers;
-}
-
-void frame(VkCommandBuffer commandBuffer) {
-    swapchain->Acquire();
-
-    // Submit the command buffer
-    VkSubmitInfo submitInfo = {};
-    submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-
-    VkSemaphore waitSemaphores[] = { swapchain->GetImageAvailableSemaphore() };
-    VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
-    submitInfo.waitSemaphoreCount = 1;
-    submitInfo.pWaitSemaphores = waitSemaphores;
-    submitInfo.pWaitDstStageMask = waitStages;
-
-    submitInfo.commandBufferCount = 1;
-    submitInfo.pCommandBuffers = &commandBuffer;
-
-    VkSemaphore signalSemaphores[] = { swapchain->GetRenderFinishedSemaphore() };
-    submitInfo.signalSemaphoreCount = 1;
-    submitInfo.pSignalSemaphores = signalSemaphores;
-
-    if (vkQueueSubmit(device->GetQueue(QueueFlags::Graphics), 1, &submitInfo, VK_NULL_HANDLE) != VK_SUCCESS) {
-        throw std::runtime_error("Failed to submit draw command buffer");
-    }
-
-    swapchain->Present();
 }
 
 int main(int argc, char** argv) {
@@ -183,9 +156,36 @@ int main(int argc, char** argv) {
     }
 
     while (!ShouldQuit()) {
-        frame(commandBuffers[swapchain->GetIndex()]);
+        swapchain->Acquire();
+        
+        // Submit the command buffer
+        VkSubmitInfo submitInfo = {};
+        submitInfo.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+    
+        VkSemaphore waitSemaphores[] = { swapchain->GetImageAvailableSemaphore() };
+        VkPipelineStageFlags waitStages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
+        submitInfo.waitSemaphoreCount = 1;
+        submitInfo.pWaitSemaphores = waitSemaphores;
+        submitInfo.pWaitDstStageMask = waitStages;
+    
+        submitInfo.commandBufferCount = 1;
+        submitInfo.pCommandBuffers = &commandBuffers[swapchain->GetIndex()];
+    
+        VkSemaphore signalSemaphores[] = { swapchain->GetRenderFinishedSemaphore() };
+        submitInfo.signalSemaphoreCount = 1;
+        submitInfo.pSignalSemaphores = signalSemaphores;
+    
+        if (vkQueueSubmit(device->GetQueue(QueueFlags::Graphics), 1, &submitInfo, VK_NULL_HANDLE) != VK_SUCCESS) {
+            throw std::runtime_error("Failed to submit draw command buffer");
+        }
+    
+        swapchain->Present();
+
         glfwPollEvents();
     }
+
+    // Wait for the device to finish executing before cleanup
+    vkDeviceWaitIdle(device->GetVulkanDevice());
 
     vkDestroyRenderPass(device->GetVulkanDevice(), renderPass, nullptr);
     vkFreeCommandBuffers(device->GetVulkanDevice(), commandPool, static_cast<uint32_t>(commandBuffers.size()), commandBuffers.data());

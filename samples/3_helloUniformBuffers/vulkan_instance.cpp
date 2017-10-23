@@ -3,13 +3,13 @@
 #include <vector>
 #include "vulkan_instance.h"
 
-namespace {
 #ifdef NDEBUG
-    constexpr bool enableValidationLayers = false;
+const bool ENABLE_VALIDATION = false;
 #else
-    constexpr bool enableValidationLayers = true;
+const bool ENABLE_VALIDATION = true;
 #endif
 
+namespace {
     const std::vector<const char*> validationLayers = {
         "VK_LAYER_LUNARG_standard_validation"
     };
@@ -18,7 +18,7 @@ namespace {
     std::vector<const char*> getRequiredExtensions() {
         std::vector<const char*> extensions;
 
-        if (enableValidationLayers) {
+        if (ENABLE_VALIDATION) {
             extensions.push_back(VK_EXT_DEBUG_REPORT_EXTENSION_NAME);
         }
 
@@ -65,7 +65,7 @@ VulkanInstance::VulkanInstance(const char* applicationName, unsigned int additio
     createInfo.ppEnabledExtensionNames = extensions.data();
 
     // Specify global validation layers
-    if (enableValidationLayers) {
+    if (ENABLE_VALIDATION) {
         createInfo.enabledLayerCount = static_cast<uint32_t>(validationLayers.size());
         createInfo.ppEnabledLayerNames = validationLayers.data();
     } else {
@@ -118,7 +118,7 @@ uint32_t VulkanInstance::GetMemoryTypeIndex(uint32_t typeBits, VkMemoryPropertyF
 }
 
 void VulkanInstance::initDebugReport() {
-    if (enableValidationLayers) {
+    if (ENABLE_VALIDATION) {
         // Specify details for callback
         VkDebugReportCallbackCreateInfoEXT createInfo = {};
         createInfo.sType = VK_STRUCTURE_TYPE_DEBUG_REPORT_CALLBACK_CREATE_INFO_EXT;
@@ -324,7 +324,7 @@ VulkanDevice* VulkanInstance::CreateDevice(QueueFlagBits requiredQueues) {
     createInfo.enabledExtensionCount = static_cast<uint32_t>(deviceExtensions.size());
     createInfo.ppEnabledExtensionNames = deviceExtensions.data();
 
-    if (enableValidationLayers) {
+    if (ENABLE_VALIDATION) {
         createInfo.enabledLayerCount = static_cast<uint32_t>(validationLayers.size());
         createInfo.ppEnabledLayerNames = validationLayers.data();
     } else {
@@ -348,7 +348,7 @@ VulkanDevice* VulkanInstance::CreateDevice(QueueFlagBits requiredQueues) {
 }
 
 VulkanInstance::~VulkanInstance() {
-    if (enableValidationLayers) {
+    if (ENABLE_VALIDATION) {
         auto func = (PFN_vkDestroyDebugReportCallbackEXT)vkGetInstanceProcAddr(instance, "vkDestroyDebugReportCallbackEXT");
         if (func != nullptr) {
             func(instance, debugReportCallback, nullptr);
