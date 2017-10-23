@@ -7,8 +7,8 @@ OPTION(USE_D2D_WSI "Build the project using Direct to Display swapchain" OFF)
 
 find_package(Vulkan REQUIRED)
 
-set(GLM_INCLUDE_DIR external/glm)
-set(GLFW_INCLUDE_DIR external/GLFW/include)
+set(GLM_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/external/glm)
+# set(GLFW_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/external/GLFW/include)
 
 IF(WIN32)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DVK_USE_PLATFORM_WIN32_KHR")

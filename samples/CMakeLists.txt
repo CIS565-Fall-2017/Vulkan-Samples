@@ -34,6 +34,7 @@ function(buildSample SAMPLE_NAME)
   target_include_directories(${SAMPLE_NAME} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR} 
     ${CMAKE_CURRENT_SOURCE_DIR}/${SAMPLE_NAME}
+    ${GLM_INCLUDE_DIR}
   )
   
   ExternalTarget("samples" ${SAMPLE_NAME})
