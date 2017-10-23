@@ -8,11 +8,7 @@ function(buildSample SAMPLE_NAME)
     ${SAMPLE_NAME}/*.tese
     ${SAMPLE_NAME}/*.tesc
   )
-  foreach(SHADER_SOURCE ${SHADER_SOURCES})
-    if(WIN32)
-      execute_process(COMMAND $ENV{VK_SDK_PATH}/Bin/glslangValidator.exe -V ${SHADER_SOURCE} -o ${SHADER_SOURCE}.spv)
-    endif(WIN32)
-  endforeach()
+  
   source_group("Shaders" FILES ${SHADER_SOURCES})
 
   if(WIN32)
@@ -22,6 +18,17 @@ function(buildSample SAMPLE_NAME)
     add_executable(${SAMPLE_NAME} ${SAMPLE_SOURCES})
     target_link_libraries(${SAMPLE_NAME} ${CMAKE_THREAD_LIBS_INIT})
   endif(WIN32)
+
+  foreach(SHADER_SOURCE ${SHADER_SOURCES})
+  set(SHADER_DIR ${CMAKE_CURRENT_BINARY_DIR}/${SAMPLE_NAME}/shaders)
+    if(WIN32)
+      get_filename_component(fname ${SHADER_SOURCE} NAME)
+      add_custom_command(TARGET ${SAMPLE_NAME} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${SHADER_DIR} && 
+        $ENV{VK_SDK_PATH}/Bin/glslangValidator.exe -V ${SHADER_SOURCE} -o ${SHADER_DIR}/${fname}.spv
+      )
+    endif(WIN32)
+  endforeach()
 
   target_link_libraries(${SAMPLE_NAME} ${ASSIMP_LIBRARIES} Vulkan::Vulkan glfw)
   target_include_directories(${SAMPLE_NAME} PRIVATE
@@ -35,3 +42,4 @@ endfunction(buildSample)
 buildSample(0_helloWindow)
 buildSample(1_helloTriangle)
 buildSample(2_helloVertexBuffers)
+buildSample(3_helloUniformBuffers)

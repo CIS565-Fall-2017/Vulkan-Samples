@@ -75,8 +75,8 @@ VkPipelineLayout CreatePipelineLayout() {
 }
 
 VkPipeline CreatePipeline(VkPipelineLayout pipelineLayout, VkRenderPass renderPass, unsigned int subpass) {
-    VkShaderModule vertShaderModule = createShaderModule("shaders/shader.vert.spv", device->GetVulkanDevice());
-    VkShaderModule fragShaderModule = createShaderModule("shaders/shader.frag.spv", device->GetVulkanDevice());
+    VkShaderModule vertShaderModule = createShaderModule("1_helloTriangle/shaders/shader.vert.spv", device->GetVulkanDevice());
+    VkShaderModule fragShaderModule = createShaderModule("1_helloTriangle/shaders/shader.frag.spv", device->GetVulkanDevice());
 
     // Assign each shader module to the appropriate stage in the pipeline
     VkPipelineShaderStageCreateInfo vertShaderStageInfo = {};
