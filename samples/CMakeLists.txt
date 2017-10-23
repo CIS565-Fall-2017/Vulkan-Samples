@@ -23,10 +23,13 @@ function(buildSample SAMPLE_NAME)
   set(SHADER_DIR ${CMAKE_CURRENT_BINARY_DIR}/${SAMPLE_NAME}/shaders)
     if(WIN32)
       get_filename_component(fname ${SHADER_SOURCE} NAME)
-      add_custom_command(TARGET ${SAMPLE_NAME} POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E make_directory ${SHADER_DIR} && 
-        $ENV{VK_SDK_PATH}/Bin/glslangValidator.exe -V ${SHADER_SOURCE} -o ${SHADER_DIR}/${fname}.spv
-      )
+	  add_custom_target(${SAMPLE_NAME}_${fname}.spv
+	    COMMAND ${CMAKE_COMMAND} -E make_directory ${SHADER_DIR} && 
+	    $ENV{VK_SDK_PATH}/Bin/glslangValidator.exe -V ${SHADER_SOURCE} -o ${SHADER_DIR}/${fname}.spv
+		SOURCES ${SHADER_SOURCE}
+	  )
+	  ExternalTarget("Shaders" ${SAMPLE_NAME}_${fname}.spv)
+	  add_dependencies(${SAMPLE_NAME} ${SAMPLE_NAME}_${fname}.spv)
     endif(WIN32)
   endforeach()
 
@@ -44,3 +47,4 @@ buildSample(0_helloWindow)
 buildSample(1_helloTriangle)
 buildSample(2_helloVertexBuffers)
 buildSample(3_helloUniformBuffers)
+buildSample(4_helloCompute)
