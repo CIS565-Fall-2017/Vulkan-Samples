@@ -594,9 +594,33 @@ int main(int argc, char** argv) {
         renderPassInfo.clearValueCount = 1;
         renderPassInfo.pClearValues = &clearColor;
 
+        // Bind the compute pipeline
         vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_COMPUTE, computePipeline);
+
+        // Bind descriptor sets for compute
         vkCmdBindDescriptorSets(commandBuffers[i], VK_PIPELINE_BIND_POINT_COMPUTE, computePipelineLayout, 0, 1, &computeSet, 0, nullptr);
+
+        // Dispatch the compute kernel, with one thread for each vertex
         vkCmdDispatch(commandBuffers[i], vertices.size(), 1, 1);
+
+        // Define a memory barrier to transition the vertex buffer from a compute storage object to a vertex input
+        VkBufferMemoryBarrier computeToVertexBarrier = {};
+        computeToVertexBarrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+        computeToVertexBarrier.srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT | VK_ACCESS_SHADER_READ_BIT;
+        computeToVertexBarrier.dstAccessMask = VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT;
+        computeToVertexBarrier.srcQueueFamilyIndex = device->GetQueueIndex(QueueFlags::Compute);
+        computeToVertexBarrier.dstQueueFamilyIndex = device->GetQueueIndex(QueueFlags::Graphics);
+        computeToVertexBarrier.buffer = vertexBuffer;
+        computeToVertexBarrier.offset = 0;
+        computeToVertexBarrier.size = vertexBufferSize;
+
+        vkCmdPipelineBarrier(commandBuffers[i],
+            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+            VK_PIPELINE_STAGE_VERTEX_INPUT_BIT,
+            0,
+            0, nullptr,
+            1, &computeToVertexBarrier,
+            0, nullptr);
 
         vkCmdBeginRenderPass(commandBuffers[i], &renderPassInfo, VK_SUBPASS_CONTENTS_INLINE);
 
