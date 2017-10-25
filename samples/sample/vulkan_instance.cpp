@@ -283,7 +283,7 @@ void VulkanInstance::PickPhysicalDevice(std::vector<const char*> deviceExtension
     vkGetPhysicalDeviceMemoryProperties(physicalDevice, &deviceMemoryProperties);
 }
 
-VulkanDevice* VulkanInstance::CreateDevice(QueueFlagBits requiredQueues) {
+VulkanDevice* VulkanInstance::CreateDevice(QueueFlagBits requiredQueues, VkPhysicalDeviceFeatures deviceFeatures) {
     std::set<int> uniqueQueueFamilies;
     bool queueSupport = true;
     for (unsigned int i = 0; i < requiredQueues.size(); ++i) {
@@ -307,9 +307,6 @@ VulkanDevice* VulkanInstance::CreateDevice(QueueFlagBits requiredQueues) {
         queueCreateInfo.pQueuePriorities = &queuePriority;
         queueCreateInfos.push_back(queueCreateInfo);
     }
-
-    // --- Specify the set of device features used ---
-    VkPhysicalDeviceFeatures deviceFeatures = {};
 
     // --- Create logical device ---
     VkDeviceCreateInfo createInfo = {};

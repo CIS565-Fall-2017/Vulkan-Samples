@@ -25,7 +25,7 @@ public:
 
     void PickPhysicalDevice(std::vector<const char*> deviceExtensions, QueueFlagBits requiredQueues, VkSurfaceKHR surface = VK_NULL_HANDLE);
 
-    VulkanDevice* CreateDevice(QueueFlagBits requiredQueues);
+    VulkanDevice* CreateDevice(QueueFlagBits requiredQueues, VkPhysicalDeviceFeatures deviceFeatures);
 
     ~VulkanInstance();
 
