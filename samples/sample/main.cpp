@@ -3,10 +3,16 @@
 #include "window.h"
 #include "vulkan_instance.h"
 #include "vulkan_shader_module.h"
+#include "vulkan_buffer.h"
 
 VulkanInstance* instance;
 VulkanDevice* device;
 VulkanSwapChain* swapchain;
+
+struct Vertex {
+    float position[3];
+    float color[3];
+};
 
 VkRenderPass CreateRenderPass() {
     // Color buffer attachment represented by one of the images from the swap chain
@@ -95,13 +101,34 @@ VkPipeline CreatePipeline(VkPipelineLayout pipelineLayout, VkRenderPass renderPa
 
     // --- Set up fixed-function stages ---
 
+    // Vertex input binding
+    VkVertexInputBindingDescription vertexInputBinding = {};
+    vertexInputBinding.binding = 0;
+    vertexInputBinding.stride = sizeof(Vertex);
+    vertexInputBinding.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+
+    // Inpute attribute bindings describe shader attribute locations and memory layouts
+    std::array<VkVertexInputAttributeDescription, 2> vertexInputAttributes;
+    // Attribute location 0: Position
+    vertexInputAttributes[0].binding = 0;
+    vertexInputAttributes[0].location = 0;
+    // Position attribute is three 32 bit signed (SFLOAT) floats (R32 G32 B32)
+    vertexInputAttributes[0].format = VK_FORMAT_R32G32B32_SFLOAT;
+    vertexInputAttributes[0].offset = offsetof(Vertex, position);
+    // Attribute location 1: Color
+    vertexInputAttributes[1].binding = 0;
+    vertexInputAttributes[1].location = 1;
+    // Color attribute is three 32 bit signed (SFLOAT) floats (R32 G32 B32)
+    vertexInputAttributes[1].format = VK_FORMAT_R32G32B32_SFLOAT;
+    vertexInputAttributes[1].offset = offsetof(Vertex, color);
+
     // Vertex input
     VkPipelineVertexInputStateCreateInfo vertexInputInfo = {};
     vertexInputInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-    vertexInputInfo.vertexBindingDescriptionCount = 0;
-    vertexInputInfo.pVertexBindingDescriptions = nullptr;
-    vertexInputInfo.vertexAttributeDescriptionCount = 0;
-    vertexInputInfo.pVertexAttributeDescriptions = nullptr;
+    vertexInputInfo.vertexBindingDescriptionCount = 1;
+    vertexInputInfo.pVertexBindingDescriptions = &vertexInputBinding;
+    vertexInputInfo.vertexAttributeDescriptionCount = 2;
+    vertexInputInfo.pVertexAttributeDescriptions = vertexInputAttributes.data();
 
     // Input assembly
     VkPipelineInputAssemblyStateCreateInfo inputAssembly = {};
@@ -208,7 +235,6 @@ VkPipeline CreatePipeline(VkPipelineLayout pipelineLayout, VkRenderPass renderPa
     return pipeline;
 }
 
-
 std::vector<VkFramebuffer> CreateFrameBuffers(VkRenderPass renderPass) {
     std::vector<VkFramebuffer> frameBuffers(swapchain->GetCount());
     for (uint32_t i = 0; i < swapchain->GetCount(); i++) {
@@ -231,7 +257,7 @@ std::vector<VkFramebuffer> CreateFrameBuffers(VkRenderPass renderPass) {
 }
 
 int main(int argc, char** argv) {
-    static constexpr char* applicationName = "Hello Triangle";
+    static constexpr char* applicationName = "Hello Uniform Buffers";
     InitializeWindow(640, 480, applicationName);
 
     unsigned int glfwExtensionCount = 0;
@@ -244,9 +270,9 @@ int main(int argc, char** argv) {
         throw std::runtime_error("Failed to create window surface");
     }
 
-    instance->PickPhysicalDevice({ VK_KHR_SWAPCHAIN_EXTENSION_NAME }, QueueFlagBit::GraphicsBit | QueueFlagBit::PresentBit, surface);
+    instance->PickPhysicalDevice({ VK_KHR_SWAPCHAIN_EXTENSION_NAME }, QueueFlagBit::GraphicsBit | QueueFlagBit::TransferBit | QueueFlagBit::PresentBit, surface);
 
-    device = instance->CreateDevice(QueueFlagBit::GraphicsBit | QueueFlagBit::PresentBit);
+    device = instance->CreateDevice(QueueFlagBit::GraphicsBit | QueueFlagBit::TransferBit | QueueFlagBit::PresentBit);
     swapchain = device->CreateSwapChain(surface);
 
     VkCommandPoolCreateInfo poolInfo = {};
@@ -258,6 +284,35 @@ int main(int argc, char** argv) {
     if (vkCreateCommandPool(device->GetVulkanDevice(), &poolInfo, nullptr, &commandPool) != VK_SUCCESS) {
         throw std::runtime_error("Failed to create command pool");
     }
+
+    std::vector<Vertex> vertices = {
+        { { 0.5f,  0.5f, 0.0f }, { 0.0f, 1.0f, 0.0f } },
+        { { -0.5f, 0.5f, 0.0f }, { 0.0f, 0.0f, 1.0f } },
+        { { 0.0f, -0.5f, 0.0f }, { 1.0f, 0.0f, 0.0f } }
+    };
+
+    std::vector<unsigned int> indices = { 0, 1, 2 };
+
+    unsigned int vertexBufferSize = static_cast<uint32_t>(vertices.size() * sizeof(vertices[0]));
+    unsigned int indexBufferSize = static_cast<uint32_t>(indices.size() * sizeof(indices[0]));
+
+    // Create vertex and index buffers
+    VkBuffer vertexBuffer = CreateBuffer(device, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, vertexBufferSize);
+    VkBuffer indexBuffer = CreateBuffer(device, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, indexBufferSize);
+    unsigned int vertexBufferOffsets[2];
+    VkDeviceMemory vertexBufferMemory = AllocateMemoryForBuffers(device, { vertexBuffer, indexBuffer }, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, vertexBufferOffsets);
+
+    // Copy data to buffer memory
+    {
+        char* data;
+        vkMapMemory(device->GetVulkanDevice(), vertexBufferMemory, 0, vertexBufferOffsets[1] + indexBufferSize, 0, reinterpret_cast<void**>(&data));
+        memcpy(data + vertexBufferOffsets[0], vertices.data(), vertexBufferSize);
+        memcpy(data + vertexBufferOffsets[1], indices.data(), indexBufferSize);
+        vkUnmapMemory(device->GetVulkanDevice(), vertexBufferMemory);
+    }
+
+    // Bind the memory to the buffers
+    BindMemoryForBuffers(device, vertexBufferMemory, { vertexBuffer, indexBuffer }, vertexBufferOffsets);
 
     VkRenderPass renderPass = CreateRenderPass();
     VkPipelineLayout pipelineLayout = CreatePipelineLayout();
@@ -305,6 +360,15 @@ int main(int argc, char** argv) {
         // Bind the graphics pipeline
         vkCmdBindPipeline(commandBuffers[i], VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
 
+        VkDeviceSize offsets[1] = { 0 };
+        vkCmdBindVertexBuffers(commandBuffers[i], 0, 1, &vertexBuffer, offsets);
+
+        // Bind triangle index buffer
+        vkCmdBindIndexBuffer(commandBuffers[i], indexBuffer, 0, VK_INDEX_TYPE_UINT32);
+
+        // Draw indexed triangle
+        vkCmdDrawIndexed(commandBuffers[i], 3, 1, 0, 0, 1);
+
         // Draw
         vkCmdDraw(commandBuffers[i], 3, 1, 0, 0);
 
@@ -346,6 +410,10 @@ int main(int argc, char** argv) {
 
     // Wait for the device to finish executing before cleanup
     vkDeviceWaitIdle(device->GetVulkanDevice());
+
+    vkDestroyBuffer(device->GetVulkanDevice(), vertexBuffer, nullptr);
+    vkDestroyBuffer(device->GetVulkanDevice(), indexBuffer, nullptr);
+    vkFreeMemory(device->GetVulkanDevice(), vertexBufferMemory, nullptr);
 
     vkDestroyPipeline(device->GetVulkanDevice(), pipeline, nullptr);
     vkDestroyPipelineLayout(device->GetVulkanDevice(), pipelineLayout, nullptr);
