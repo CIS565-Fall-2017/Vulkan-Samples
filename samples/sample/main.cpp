@@ -179,6 +179,8 @@ VkPipelineLayout CreatePipelineLayout(std::vector<VkDescriptorSetLayout> descrip
 
 VkPipeline CreateGraphicsPipeline(VkPipelineLayout pipelineLayout, VkRenderPass renderPass, unsigned int subpass) {
     VkShaderModule vertShaderModule = createShaderModule("sample/shaders/shader.vert.spv", device->GetVulkanDevice());
+	VkShaderModule tescShaderModule = createShaderModule("sample/shaders/shader.tesc.spv", device->GetVulkanDevice());
+	VkShaderModule teseShaderModule = createShaderModule("sample/shaders/shader.tese.spv", device->GetVulkanDevice());
     VkShaderModule fragShaderModule = createShaderModule("sample/shaders/shader.frag.spv", device->GetVulkanDevice());
 
     // Assign each shader module to the appropriate stage in the pipeline
@@ -188,13 +190,25 @@ VkPipeline CreateGraphicsPipeline(VkPipelineLayout pipelineLayout, VkRenderPass 
     vertShaderStageInfo.module = vertShaderModule;
     vertShaderStageInfo.pName = "main";
 
+	VkPipelineShaderStageCreateInfo tescShaderStageInfo = {};
+	tescShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+	tescShaderStageInfo.stage = VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT;
+	tescShaderStageInfo.module = tescShaderModule;
+	tescShaderStageInfo.pName = "main";
+
+	VkPipelineShaderStageCreateInfo teseShaderStageInfo = {};
+	teseShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+	teseShaderStageInfo.stage = VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT;
+	teseShaderStageInfo.module = teseShaderModule;
+	teseShaderStageInfo.pName = "main";
+
     VkPipelineShaderStageCreateInfo fragShaderStageInfo = {};
     fragShaderStageInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
     fragShaderStageInfo.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
     fragShaderStageInfo.module = fragShaderModule;
     fragShaderStageInfo.pName = "main";
 
-    VkPipelineShaderStageCreateInfo shaderStages[] = { vertShaderStageInfo, fragShaderStageInfo };
+    VkPipelineShaderStageCreateInfo shaderStages[] = { vertShaderStageInfo, tescShaderStageInfo, teseShaderStageInfo, fragShaderStageInfo };
 
     // --- Set up fixed-function stages ---
 
@@ -230,8 +244,15 @@ VkPipeline CreateGraphicsPipeline(VkPipelineLayout pipelineLayout, VkRenderPass 
     // Input assembly
     VkPipelineInputAssemblyStateCreateInfo inputAssembly = {};
     inputAssembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
-    inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+    inputAssembly.topology = VK_PRIMITIVE_TOPOLOGY_PATCH_LIST;
     inputAssembly.primitiveRestartEnable = VK_FALSE;
+
+	// Tessellation state
+	VkPipelineTessellationStateCreateInfo tessellationInfo = {};
+	tessellationInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_TESSELLATION_STATE_CREATE_INFO;
+	tessellationInfo.pNext = NULL;
+	tessellationInfo.flags = 0;
+	tessellationInfo.patchControlPoints = 1;
 
     // Viewports and Scissors (rectangles that define in which regions pixels are stored)
     VkViewport viewport = {};
@@ -258,7 +279,7 @@ VkPipeline CreateGraphicsPipeline(VkPipelineLayout pipelineLayout, VkRenderPass 
     rasterizer.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
     rasterizer.depthClampEnable = VK_FALSE;
     rasterizer.rasterizerDiscardEnable = VK_FALSE;
-    rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
+	rasterizer.polygonMode = VK_POLYGON_MODE_LINE;
     rasterizer.lineWidth = 1.0f;
     rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
     rasterizer.frontFace = VK_FRONT_FACE_CLOCKWISE;
@@ -304,10 +325,11 @@ VkPipeline CreateGraphicsPipeline(VkPipelineLayout pipelineLayout, VkRenderPass 
     // --- Create graphics pipeline ---
     VkGraphicsPipelineCreateInfo pipelineInfo = {};
     pipelineInfo.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
-    pipelineInfo.stageCount = 2;
+    pipelineInfo.stageCount = 4;
     pipelineInfo.pStages = shaderStages;
     pipelineInfo.pVertexInputState = &vertexInputInfo;
     pipelineInfo.pInputAssemblyState = &inputAssembly;
+	pipelineInfo.pTessellationState = &tessellationInfo;
     pipelineInfo.pViewportState = &viewportState;
     pipelineInfo.pRasterizationState = &rasterizer;
     pipelineInfo.pMultisampleState = &multisampling;
@@ -327,6 +349,8 @@ VkPipeline CreateGraphicsPipeline(VkPipelineLayout pipelineLayout, VkRenderPass 
 
     // No need for the shader modules anymore
     vkDestroyShaderModule(device->GetVulkanDevice(), vertShaderModule, nullptr);
+	vkDestroyShaderModule(device->GetVulkanDevice(), tescShaderModule, nullptr);
+	vkDestroyShaderModule(device->GetVulkanDevice(), teseShaderModule, nullptr);
     vkDestroyShaderModule(device->GetVulkanDevice(), fragShaderModule, nullptr);
 
     return pipeline;
@@ -378,7 +402,7 @@ std::vector<VkFramebuffer> CreateFrameBuffers(VkRenderPass renderPass) {
 }
 
 int main(int argc, char** argv) {
-    static constexpr char* applicationName = "Hello Compute";
+    static constexpr char* applicationName = "Hello Tessellation";
     InitializeWindow(640, 480, applicationName);
 
     unsigned int glfwExtensionCount = 0;
@@ -393,7 +417,12 @@ int main(int argc, char** argv) {
 
     instance->PickPhysicalDevice({ VK_KHR_SWAPCHAIN_EXTENSION_NAME }, QueueFlagBit::GraphicsBit | QueueFlagBit::TransferBit | QueueFlagBit::ComputeBit | QueueFlagBit::PresentBit, surface);
 
-    device = instance->CreateDevice(QueueFlagBit::GraphicsBit | QueueFlagBit::TransferBit | QueueFlagBit::ComputeBit | QueueFlagBit::PresentBit);
+	// --- Specify the set of device features used ---
+	VkPhysicalDeviceFeatures deviceFeatures = {};
+	deviceFeatures.tessellationShader = VK_TRUE;
+	deviceFeatures.fillModeNonSolid = VK_TRUE;
+
+    device = instance->CreateDevice(QueueFlagBit::GraphicsBit | QueueFlagBit::TransferBit | QueueFlagBit::ComputeBit | QueueFlagBit::PresentBit, deviceFeatures);
     swapchain = device->CreateSwapChain(surface);
 
     VkCommandPoolCreateInfo poolInfo = {};
@@ -411,36 +440,29 @@ int main(int argc, char** argv) {
     cameraTransforms.projectionMatrix = glm::perspective(static_cast<float>(45 * M_PI / 180), 640.f / 480.f, 0.1f, 1000.f);
 
     ModelUBO modelTransforms;
-    modelTransforms.modelMatrix = glm::rotate(glm::mat4(1.f), static_cast<float>(15 * M_PI / 180), glm::vec3(0.f, 0.f, 1.f));
+	modelTransforms.modelMatrix = glm::mat4(1.0);//glm::rotate(glm::mat4(1.f), static_cast<float>(15 * M_PI / 180), glm::vec3(0.f, 0.f, 1.f));
 
     std::vector<Vertex> vertices = {
-        { { 0.5f,  0.5f, 0.0f, 1.f },{ 0.0f, 1.0f, 0.0f, 1.f } },
-        { { -0.5f, 0.5f, 0.0f, 1.f },{ 0.0f, 0.0f, 1.0f, 1.f } },
-        { { 0.0f, -0.5f, 0.0f, 1.f },{ 1.0f, 0.0f, 0.0f, 1.f } }
+        { { 0.0f,  1.0f, 0.0f, 1.f },{ 0.0f, 1.0f, 0.0f, 1.f } },
     };
 
-    std::vector<unsigned int> indices = { 0, 1, 2 };
-
     unsigned int vertexBufferSize = static_cast<uint32_t>(vertices.size() * sizeof(vertices[0]));
-    unsigned int indexBufferSize = static_cast<uint32_t>(indices.size() * sizeof(indices[0]));
 
     // Create vertex and index buffers
     VkBuffer vertexBuffer = CreateBuffer(device, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, vertexBufferSize);
-    VkBuffer indexBuffer = CreateBuffer(device, VK_BUFFER_USAGE_INDEX_BUFFER_BIT, indexBufferSize);
-    unsigned int vertexBufferOffsets[2];
-    VkDeviceMemory vertexBufferMemory = AllocateMemoryForBuffers(device, { vertexBuffer, indexBuffer }, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, vertexBufferOffsets);
+    unsigned int vertexBufferOffsets[1];
+    VkDeviceMemory vertexBufferMemory = AllocateMemoryForBuffers(device, { vertexBuffer }, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, vertexBufferOffsets);
 
     // Copy data to buffer memory
     {
         char* data;
-        vkMapMemory(device->GetVulkanDevice(), vertexBufferMemory, 0, vertexBufferOffsets[1] + indexBufferSize, 0, reinterpret_cast<void**>(&data));
+        vkMapMemory(device->GetVulkanDevice(), vertexBufferMemory, 0, vertexBufferSize, 0, reinterpret_cast<void**>(&data));
         memcpy(data + vertexBufferOffsets[0], vertices.data(), vertexBufferSize);
-        memcpy(data + vertexBufferOffsets[1], indices.data(), indexBufferSize);
         vkUnmapMemory(device->GetVulkanDevice(), vertexBufferMemory);
     }
 
     // Bind the memory to the buffers
-    BindMemoryForBuffers(device, vertexBufferMemory, { vertexBuffer, indexBuffer }, vertexBufferOffsets);
+    BindMemoryForBuffers(device, vertexBufferMemory, { vertexBuffer }, vertexBufferOffsets);
 
     // Create uniform buffers
     VkBuffer cameraBuffer = CreateBuffer(device, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT, sizeof(CameraUBO));
@@ -467,7 +489,7 @@ int main(int argc, char** argv) {
     });
 
     VkDescriptorSetLayout cameraSetLayout = CreateDescriptorSetLayout({
-        { 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT, nullptr },
+        { 0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT , nullptr },
     });
 
     VkDescriptorSetLayout modelSetLayout = CreateDescriptorSetLayout({
@@ -609,11 +631,8 @@ int main(int argc, char** argv) {
         VkDeviceSize offsets[1] = { 0 };
         vkCmdBindVertexBuffers(commandBuffers[i], 0, 1, &vertexBuffer, offsets);
 
-        // Bind triangle index buffer
-        vkCmdBindIndexBuffer(commandBuffers[i], indexBuffer, 0, VK_INDEX_TYPE_UINT32);
-
-        // Draw indexed triangle
-        vkCmdDrawIndexed(commandBuffers[i], 3, 1, 0, 0, 1);
+        // Draw single point which will tessellate to a triangle
+		vkCmdDraw(commandBuffers[i], 1, 1, 0, 1);
 
         vkCmdEndRenderPass(commandBuffers[i]);
 
@@ -665,7 +684,6 @@ int main(int argc, char** argv) {
     delete camera;
 
     vkDestroyBuffer(device->GetVulkanDevice(), vertexBuffer, nullptr);
-    vkDestroyBuffer(device->GetVulkanDevice(), indexBuffer, nullptr);
     vkFreeMemory(device->GetVulkanDevice(), vertexBufferMemory, nullptr);
 
     vkDestroyBuffer(device->GetVulkanDevice(), cameraBuffer, nullptr);
