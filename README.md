@@ -25,3 +25,6 @@ Each sample is also included on its own branch. Diffs of the branches can be vie
 - [Hello Vertex Buffers --> Hello Uniform Buffers](https://github.com/CIS565-Fall-2017/Vulkan-Samples/pull/3/files)
 - [Hello Uniform Buffers --> Hello Compute](https://github.com/CIS565-Fall-2017/Vulkan-Samples/pull/4/files)
 - [Hello Compute --> Hello Tessellation](https://github.com/CIS565-Fall-2017/Vulkan-Samples/pull/5/files)
+
+## Credits
+Content adapted from [Vulkan Tutorial](https://vulkan-tutorial.com/)
